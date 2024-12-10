@@ -1,0 +1,217 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argoprep-auth-service
+spec:
+  selector:
+    matchLabels:
+      app: argoprep-auth-service
+  template:
+    metadata:
+      labels:
+        app: argoprep-auth-service
+    spec:
+      containers:
+      - name: argoprep-auth-service
+        image: <argoprep-ecr-repo>/auth-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8081
+        env:
+        - name: CONFIG_SERVER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: config-cm
+              key: config_url
+        - name: kafka-bootstrap
+          value: kafka-bootstrap
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: mysql-cm
+              key: hostname
+        - name: MYSQL_ROOT_PASSWORD
+          value: secure-password
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argoprep-auth-service
+spec:
+  selector:
+    app: argoprep-auth-service
+  ports:
+  - port: 80
+    targetPort: 8081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argoprep-cloud-gateway
+spec:
+  selector:
+    matchLabels:
+      app: argoprep-cloud-gateway
+  template:
+    metadata:
+      labels:
+        app: argoprep-cloud-gateway
+    spec:
+      containers:
+      - name: argoprep-cloud-gateway
+        image: <argoprep-ecr-repo>/cloud-gateway:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8084
+        env:
+          - name: CONFIG_SERVER_URL
+            valueFrom:
+              configMapKeyRef:
+                name: config-cm
+                key: config_url
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argoprep-cloud-gateway
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:region:account-id:certificate/certificate-id"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+spec:
+  type: LoadBalancer
+  selector:
+    app: argoprep-cloud-gateway
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8084
+  - name: https
+    port: 443
+    targetPort: 8084
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argoprep-config-server
+spec:
+  selector:
+    matchLabels:
+      app: argoprep-config-server
+  template:
+    metadata:
+      labels:
+        app: argoprep-config-server
+    spec:
+      containers:
+      - name: argoprep-config-server
+        image: <argoprep-ecr-repo>/config-server:latest
+        ports:
+        - containerPort: 8041
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argoprep-config-server
+spec:
+  selector:
+    app: argoprep-config-server
+  ports:
+  - port: 80
+    targetPort: 8041
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argoprep-mail-service
+spec:
+  selector:
+    matchLabels:
+      app: argoprep-mail-service
+  template:
+    metadata:
+      labels:
+        app: argoprep-mail-service
+    spec:
+      containers:
+      - name: argoprep-mail-service
+        image: <argoprep-ecr-repo>/mail-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8093
+        env:
+        - name: CONFIG_SERVER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: config-cm
+              key: config_url
+        - name: DB_HOST
+          value: mysitedb.region.rds.amazonaws.com
+        - name: EMAIL_PASSWORD
+          value: secure-email-password
+        - name: MYSQL_ROOT_PASSWORD
+          value: secure-password
+        - name: kafka-bootstrap
+          value: my-kafka-cluster-kafka-0.my-kafka-cluster-kafka-brokers:9092
+        - name: MAIL-SERVICE
+          valueFrom:
+            configMapKeyRef:
+              name: mail-cm
+              key: mail-host
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argoprep-mail-service
+spec:
+  selector:
+    app: argoprep-mail-service
+  ports:
+  - port: 80
+    targetPort: 8093
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argoprep-stripe-service
+spec:
+  selector:
+    matchLabels:
+      app: argoprep-stripe-service
+  template:
+    metadata:
+      labels:
+        app: argoprep-stripe-service
+    spec:
+      containers:
+      - name: argoprep-stripe-service
+        image: <argoprep-ecr-repo>/stripe-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8085
+        env:
+        - name: CONFIG_SERVER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: config-cm
+              key: config_url
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: mysql-cm
+              key: hostname
+        - name: MYSQL_ROOT_PASSWORD
+          value: secure-password
+        - name: kafka-bootstrap
+          value: my-kafka-cluster-kafka-0.my-kafka-cluster-kafka-brokers:9092
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: argoprep-stripe-service
+spec:
+  selector:
+    app: argoprep-stripe-service
+  ports:
+  - port: 80
+    targetPort: 8085
